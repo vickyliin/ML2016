@@ -1,0 +1,13 @@
+Method:
+	Linear Regression
+	Gradient Descent
+
+Feature x:
+	PM2.5 last hour
+
+Training Data:
+	D = { (data[i]['value'],data[i+1]['value'] | data[i]['item'] == 'PM2.5' }
+
+Configurations:
+	itr = 100
+	eta = 0.000001
