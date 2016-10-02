@@ -20,4 +20,4 @@ if __name__ == '__main__':
     
     print 'id,value'
     for i in range(len(y)):
-        print 'id_'+str(i)+','+str(int(y[i]))
+        print 'id_'+str(i)+','+str(y[i])
