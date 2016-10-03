@@ -1,0 +1,17 @@
+Method:
+	Linear Regression
+	Gradient Descent
+
+Feature x:
+	X^ProbID = { sum_over_'hour'( decay * data[i]['value'] ) | data[i]['ProbID'] == ProbID }
+	eg. assume s = min {i| data[i]['ProbID'] == 'id_1'}
+	    x_1^id_1 = decay[0]*data[s]['value'] + decay[1]*data[s+1]['value'] + ... + decay[8]*data[s+8]['value']
+		x_2^id_1 = decay[0]*data[s+9]['value'] + decay[1]*data[s+10]['value'] + ... + decay[8]*data[s+17]['value']
+		...
+		x_18^id_1 = decay[0]*data[s+153]['value'] + decay[1]*data[s+154]['value'] + ... + decay[8]*data[s+161]['value']
+
+Training Data:
+	Try to use all len(data)-10 data
+
+Configurations:
+	decay rate?
