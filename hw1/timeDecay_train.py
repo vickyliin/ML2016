@@ -4,42 +4,55 @@ import sys
 
 trainingDataAmt = 97920
 testDataAmt = 43200
+testProbAmt = 240
 D_size = 5652               # 240*24-9*12
-items = ['AMB_TEMP','CH4','CO','NMHC','NO','NO2',
-        'NOx','O3','PM10','PM2.5','RH','SO2','THC',
-        'WD_HR','WIND_DIREC','WIND_SPEED','WS_HR']
+D_size_flt = 180            # 20*9
 itemIdx = {}
-i = 1
-for item in items:
-    itemIdx[item] = i
-    i += 1
-print itemIdx
 
-
-def preprocess(fname, decayRate):
+def preprocess(fname, decayRate, feature, flt):
+    dimx = len(feature)+1
+    i = 1
+    for item in feature:
+        itemIdx[item] = i
+        i += 1
     decay = np.exp( np.array([-9,-8,-7,-6,-5,-4,-3,-2,-1,0])*decayRate )
     decay /= sum(decay)
     raw_input(decay)
+    print feature
+
     with open(fname) as f:
         data = cPickle.load(f)
-    
-    seqs = {} # seqs[item][i]: the ith month's value sequence of item
-    for item in items:
-        seqs[item] = [ [] for i in range(12) ]
-    for d in data:
-        seqs[ d['item'] ][ d['month']-1 ].append( d['value'] )
 
-    D = np.zeros(D_size, dtype=[ ('x', '18float') , ('y','float') ])
-    for item in items:
-        i = 0
-        for seq in seqs[item]:
-            for j in range( len(seq)-9 ):
-                D[i]['x'][ itemIdx[item] ] = sum( [decay[k]*seq[j+k] for k in range(9)] )
-                if item == 'PM2.5':
-                    D[i]['y'] = seq[j+9]
-                    D[i]['x'][0] = 1
-                i += 1
-    print D, 'Preprocessed.'
+    if flt:
+        with open('mostSim.m','r') as f:
+            mostSim = cPickle.load(f)
+        fltSet = zip([mostSim])
+        D = np.zeros([testProbAmt, D_size_flt], dtype=[ ('x', str(dimx)+'float') , ('y','float') ])
+        # D[i, {(x,y)} ]: the training data set of i'th test data
+        for i in range(testProbAmt):
+            for d in data:
+                if d['item'] in feature and (d['month'],d['day'],d['hour']) in fltSet[i]:
+                    pass
+    else:
+        seqs = np.zeros([len(feature),12,480], 
+                dtype=[('day','int'), ('hour', 'int'), ('value', 'float')])
+        # seqs[i][j]: item i, month j sequence of value/day/hour
+        for d in data:
+            if d['item'] in feature:
+                seqs[ itemIdx[d['item']] ][ d['month']-1 ][i] = append( d['value'] )
+
+        D = np.zeros(D_size, dtype=[ ('x', str(dimx)+'float') , ('y','float') ])
+        # x_0 remain for constant term (1)
+        for item in feature:
+            i = 0
+            for seq in seqs[item]:
+                for j in range( len(seq)-9 ):
+                    D[i]['x'][ itemIdx[item] ] = sum( [decay[k]*seq[j+k] for k in range(9)] )
+                    if item == 'PM2.5':
+                        D[i]['y'] = seq[j+9]
+                        D[i]['x'][0] = 1
+                    i += 1
+        print 'Preprocessed.'
     return D
 
 def GradientLoss(D, w, rate):
@@ -65,43 +78,90 @@ def reg(w):
         reg += x*x
     return reg
 
-def GD_Regression(D, eta, itr, regRate, init=1):
-    # model y= sum_item(w[item]x_item) 
-    w = np.zeros( len(items)+1, dtype='float' )
+def LA_Regression(D):
+    dimx = len(D[0]['x'])
+    A = np.matrix(D['x'])
+    b = np.matrix(D['y']).T
+    w = np.matrix(np.zeros(dimx, dtype='float'))
+    w = (A.T*A).I*A.T*b
+    print w.T
+    return np.array(w.T)[0]
+    
+def GD_Regression(D, regRate, GDpara):
+    # model y= sum_item(w[item]x_item)
+    dimx = len(D[0]['x'])
+    eta,itr,init = GDpara[0],GDpara[1],GDpara[2]
+
+    w = np.zeros( dimx, dtype='float' )
+    G = np.zeros( dimx, dtype='float' )
     w[ itemIdx['PM2.5'] ] = init #initial value
-    for i in range(itr):
-        w = w-eta*GradientLoss(D, w, regRate)
-        print w, Loss(D,w), reg(w)
+    if itr>0:
+        for i in range(itr):
+            g = GradientLoss(D, w, regRate)
+            G += g*g
+            w = w-eta*g/np.power(G,0.5)
+            print i, w, Loss(D,w), reg(w)
+    else:
+        stopRate = -1*itr
+        w_last = np.zeros(dimx, dtype='float')
+        changeRate = np.ones(dimx, dtype='float')
+        while abs(np.average(changeRate)) >= stopRate:
+            g = GradientLoss(D, w, regRate)
+            print g
+            G += g*g
+            changeRate = eta*g/np.power(G,0.5)
+            w = w-changeRate
+            changeRate = changeRate/w
+            print np.average(changeRate), w, Loss(D,w), reg(w)
     return w
 
 if __name__ == '__main__':
-    eta = np.array( [0.000000006]*(len(items)+1) )
     itr = 100
+    eta = [1]
     decayRate = 1
     regRate = 0
     init = 1 # initial PM2.5 weight
     wfname = sys.argv[0][:-9]
+    la = False
+    flt = False
+    feature = ['AMB_TEMP','CH4','CO','NMHC','NO','NO2',
+            'NOx','O3','PM10','PM2.5','RH','SO2','THC',
+            'WD_HR','WIND_DIREC','WIND_SPEED','WS_HR']
     for i in range( 1, len(sys.argv) ):
         arg = sys.argv[i]
         wfname += arg
-        if arg.startswith('-itemIdx'):
-            with open(wfname, 'wb') as f:
-                cPickle.dump(itemIdx, f)
-                print wfname+' saved!'
-            sys.exit()
         if arg.startswith('-itr'):
-            itr = int(arg[4:])
+            itr = float(arg[4:])
         if arg.startswith('-eta'):
-            eta = np.array( [ float(arg[4:]) ]*(len(items)+1) )
+            eta = [float(arg[4:])]
         if arg.startswith('-decay'):
             decayRate = float(arg[6:])
         if arg.startswith('-reg'):
+            if arg == '-reg':
+                regRate = -1
             regRate = float(arg[4:])
         if arg.startswith('-init'):
             init = float(arg[5:])
+        if arg.startswith('-open'):
+            feature = arg[5:].split(',')
+        if arg.startswith('-close'):
+            for item in arg[6:].split(','):
+                feature.remove(item)
+        if arg == '-la':
+            la = True
+        if arg == '-flt':
+            flt = True
     wfname += '.w'
-    D = preprocess('trainingData.m', decayRate)
-    w = GD_Regression(D, eta, itr, regRate, init)
-    with open(wfname, 'wb') as f:
-        cPickle.dump(w,f)
-        print wfname+' saved!'
+    eta = np.array( eta*(len(feature)+1) )
+    D = preprocess('trainingData.m', decayRate, feature, flt)
+    if la:
+        w = LA_Regression(D)
+    else:
+        w = GD_Regression(D, regRate, [eta, itr, init])
+        if regRate == 0:
+            print LA_Regression(D)
+    save = raw_input('Save?')
+    if save == '1':
+        with open(wfname, 'wb') as f:
+            cPickle.dump(w,f)
+            print wfname+' saved!'
