@@ -1,36 +1,10 @@
 import numpy as np
 import cPickle
 import sys
+from share import *
+from feature_read import print_feature
+from feature_read import featureMap
 
-items = ['PM2.5', 'AMB_TEMP','CH4','CO','NMHC',
-'NO','NO2', 'NOx','O3','PM10','RH','SO2','THC',
-'WD_HR','WIND_DIREC','WIND_SPEED','WS_HR']
-itemIdx = {}
-for i,item in enumerate(items):
-    itemIdx[item]=i
-print itemIdx
-# idxData[month, day, itemID, hour]
-
-class GDconf:
-    def __init__(self, dim):
-        self.dim = dim
-        self.itr = 100
-        self.eta = np.array([1]*dim)
-        self.init = 1 # initial PM2.5 weight
-    def setDim(self, dim):
-        self.dim = dim
-        self.eta = np.array([self.eta[0]]*dim)
-class config:
-    def __init__(self, dim):
-        self.dim = dim
-        self.GDpara = GDconf(dim)
-        self.regRate = 0
-        self.la = False
-        self.flt = False
-    def setDim(self, dim):
-        self.dim = dim
-        self.GDpara.setDim(dim)
-        
 def fold4val(idxData):
     # folds[i] = mask for the training set of the i'th fold
     folds = []
@@ -41,68 +15,50 @@ def fold4val(idxData):
         folds.append(mask)
     print 'Folding mask generated.'
     return folds
-
-def validate(idxData, w):
-    # foldErr[i] = the mean error as i'th fold validation
-    # w[i] = the training result w of the i'th fold validation
-    print '\nValidating the results...'
-    foldErr = [0]
-    masks = [ m*-1 for m in fold4val(idxData) ]
-    seqValData = [ dataSlicer(idxData,m) for m in masks ]
-    valSets = [ seqToD(x,feature) for x in seqValData ] 
-    for i,D in enumerate(valSets):
-        print 'fold', i
-        x,y = D['x'], D['y']
-        y_ = np.array([ sum(w[i]*xx) for xx in x ])
-        avgErr = np.average(np.abs(y-y_))
-        foldErr.append(avgErr)
-        print 'y:', y[:5]
-        print 'y*', y_[:5]
-        print 'AvgErr:', avgErr
-        print ''
+def validate(trainFold, w, feature, mean, std):
+    # transfer the trainFold to the testFold with -1 mask
+    mask = -1*np.ones(trainFold.shape, dtype=trainFold.dtype)
+    testFold = dataMask(trainFold, mask)
+    D = dataPreprocess(testFold, feature, withScale=False)
+    D['x'] = np.array( [ (x-mean)/std for x in D['x'] ] )
+    y = D['y']
+    y_ = np.array( [sum( w*x ) for x in D['x']] )
+    print 'y ', y
+    print 'y*', y_
+    foldErr = np.average(np.abs(y-y_))
     return foldErr
-
-def findTrainSet(idxData, feature, val=False):
-    # trainSets: 4 items D, different fold
-    # trainSet: D (all)
-    if val:
-        print '\nSplitting the training set...'
-        masks = fold4val(idxData)
-        seqData = [ dataSlicer(idxData,m) for m in masks ]
-        trainSets = [ seqToD(x,feature) for x in seqData ] 
-        for i in range(4):
-            print 'Fold', i, trainSets[i][0], '...'
-        print 'Training set split.'
-        print ''
-        return trainSets
-    else:
-        seqData = dataSlicer(idxData)
-        trainSet = seqToD(seqData, feature)
-        return trainSet
-'''
-def findMask(idxData, area):
-    # area[i] = [[startMonth,endMonth],[startDay,endDay],[startHour,endHour]]
-    # mask[...]={-1:mask,1:remain}
-    mask = -1*np.ones(idxData.shape, dtype=idxData.dtype) 
-    for a in area:
-        mask[ a[0,0]:a[0,1]+1, a[1,0]:a[1,1]+1, :, a[2,0]:a[2,1]+1 ] = 1
-    return mask
-'''
-def dataSlicer(idxData, mask=0):
-    # idxData[month, day, itemID, hour]
-    # seqData[seq][itemID, consequent hours] 
+def dataMask(idxData,mask=0):
     if not type(mask) is np.ndarray:
-        print 'Slicing for all train set...'
         mask = np.ones(idxData.shape, dtype=idxData.dtype)
-    seqData = []
-    mask[0,:,:,:]=-1
-    mask[:,0,:,:]=-1
-    (M,D,I,H) = idxData.shape
+    maskData = idxData * mask
+    maskData[0,:,:,:]=-1
+    maskData[:,0,:,:]=-1
+    return maskData
+def dataPreprocess(maskData, feature, withScale=True):
+# [MaskData] > Connect > Slice to consequent sequences
+#            > Scan over seqs and extracet featuere to find D
+# ( if withScale == True ) > feature scaling
+    conData = dataConnect(maskData)
+    seqData = dataSlice(conData)
+    D = seqScan(seqData, feature)
+    if withScale:
+        D, mean, std = scale(D)
+        print 'Data preprocessed with scaling.'
+        return D, mean, std
+    else:
+        print 'Data preprocessed without scaling.'
+        return D
+def dataConnect(maskData):
+    (M,D,I,H) = maskData.shape
     conData = np.zeros([I,M*D*H], dtype=idxData.dtype)
     s=0
-    for chunk in (idxData*mask).reshape(M*D,I,H):
+    for chunk in maskData.reshape(M*D,I,H):
         conData[:,s:s+H] = chunk
         s+= H
+    return conData
+def dataSlice(conData):
+    # seqData[seq][itemID, consequent hours] 
+    seqData = []
     s=0
     for i in range( len(conData[0])-1 ):
         if conData[0,i]<0 and conData[0,i+1]>=0: #Start Point
@@ -111,44 +67,35 @@ def dataSlicer(idxData, mask=0):
             if (i+1-s) > 9:
                 seqData.append(conData[:,s:i+1])
     return seqData
-def featureApply(raw, feature):
-    dimx = len(feature)+1
-    d = np.zeros(1, dtype=[('x', str(dimx)+'float'),('y', 'float')])
-    # d: an element in D
-    for j,term in enumerate(feature):
-        rawExt=[]
-        for src in term['src']:
-            rawExt.append(raw[src])
-        #print 'j:', j, ',rawExt:', rawExt
-        if term['form'] == 0:
-            d[0]['x'][j+1] = rawExt[0]
-        else:
-            d[0]['x'][j+1] = term['form'](rawExt)
-    try:
-        # for testing data process, raw.shape=[17,8]
-        d[0]['y'] = raw[0,9]
-    except:
-        pass
-    d[0]['x'][0] = 1
-    return d[0]
-def seqToD(seqData, feature):
+def seqScan(seqData, feature):
     # seqData[seq][itemID,consequent hours] 
     # feature[i] = {'src':[(itemID,hour),(itemID,hour),...]
     #               'form':function }
     # nD = |D|
     dimx = len(feature)+1
+
+    # find nD
     nD=0
     for seq in seqData:
         nD+= len(seq[0])-9
     D = np.zeros(nD, dtype=[('x', str(dimx)+'float'),('y', 'float')])
+    
+    # extract feature
     p=0
     for seq in seqData:
         for i in range(len(seq[0])-9):
             raw = seq[:,i:i+10]
             # raw[item][hour]
-            D[p+i] = featureApply(raw, feature)
+            D[p+i] = featureExt(raw, feature)
         p+= i+1
     return D
+def scale(D):
+    dimx = len( D[0]['x'] )
+    mean = np.mean(D['x'], axis=0)
+    std  = np.std (D['x'], axis=0)
+    mean[0], std[0] = 0, 1
+    D['x'] = np.array( [ (x-mean)/std for x in D['x'] ] )
+    return D, mean, std
 '''
 idxData=np.random.randint(10,size=(3,3,2,24))+1
 print idxData
@@ -174,6 +121,11 @@ def GradientLoss(D, w, rate):
         gradient[i] *= -2
         gradient[i] += rate*2*w[i]
     return gradient
+def meanErr(D,w):
+    err = 0
+    for (x,y) in D:
+        err += np.abs( y-sum(w*x) )
+    return err/len(D)
 def Loss(D, w):
     l = 0
     for (x,y) in D:
@@ -189,82 +141,124 @@ def reg(w):
     return reg
 
 def LA_Regression(D):
-    print '\nTraining...'
+    print 'Training...'
     dimx = len(D[0]['x'])
     A = np.matrix(D['x'])
     b = np.matrix(D['y']).T
     w = np.matrix(np.zeros(dimx, dtype='float'))
     w = (A.T*A).I*A.T*b
-    print w.T
-    print 'Complete training.'
+    print 'Complete training.\n'
+    print 'w', w.T
     return np.array(w.T)[0]
     
 def GD_Regression(D, regRate, GDpara):
     # model y= sum_item(w[item]x_item)
-    print '\nTraining...'
+    print 'Training...'
     dimx = len(D[0]['x'])
     eta, itr, init = GDpara.eta, GDpara.itr, GDpara.init
 
     w = np.zeros( dimx, dtype='float' )
     G = np.zeros( dimx, dtype='float' )
+    X = D['x']
+    y = D['y']
     w[ itemIdx['PM2.5'] ] = init #initial value
     if itr>0:
-        for i in range(itr):
-            g = GradientLoss(D, w, regRate)
+        for i in range(int(itr)):
+            g = -2* np.dot(( y-np.dot(X,w)), X) + 2*regRate*w
             G += g*g
             w = w-eta*g/np.power(G,0.5)
-            print i, w, Loss(D,w), reg(w)
+            print i, meanErr(D,w), reg(w)
     else:
         stopRate = -1*itr
         w_last = np.zeros(dimx, dtype='float')
-        changeRate = np.ones(dimx, dtype='float')
-        while abs(np.average(changeRate)) >= stopRate:
-            g = GradientLoss(D, w, regRate)
-            print g
+        changeRate = stopRate+1
+        while changeRate >= stopRate:
+            g = -2* np.dot(( y-np.dot(X,w)), X) + 2*regRate*w
             G += g*g
-            changeRate = eta*g/np.power(G,0.5)
-            w = w-changeRate
-            changeRate = changeRate/w
-            print np.average(changeRate), w, Loss(D,w), reg(w)
-    print 'Complete training.'
+            change = eta*g/np.power(G,0.5)
+            w = w-change
+            changeRate = np.linalg.norm(change)/np.linalg.norm(w)
+            print changeRate, meanErr(D,w), reg(w)
+    print 'Complete training.\n'
+    return w
+
+def trainD(D, feature, trainConf):
+    if trainConf.method == 'la':
+        w = LA_Regression(D)
+    if trainConf.method == 'gd':
+        w = GD_Regression(D, trainConf.regRate, trainConf.GDpara)
+        if trainConf.regRate == 0:
+            LA_Regression(D)
     return w
 
 def trainWithValidation(idxData, feature, trainConf):
-    folds = findTrainSet(idxData, feature, val=True)
-    if trainConf.la:
-        w = [ LA_Regression(D) for D in folds ]
-    else:
-        w = []
-        for i,D in enumerate(folds):
-            print '\nFold', i
-            w.append(  GD_Regression(D, trainConf.regRate, trainConf.GDpara) )
-            if trainConf.regRate == 0:
-                print LA_Regression(D)
-    foldErr = validate(idxData, w)
-    avgValErr = sum(foldErr)/4
-    print 'foldErr:', foldErr, 'Avg:', avgValErr
+    print 'Validation:'
+    trainFolds = []
+    avgValErr = 0
+
+    for i,mask in enumerate(fold4val(idxData)):
+        print '\n\nFold', i
+        maskData = dataMask(idxData, mask)
+        D, mean, std = dataPreprocess(maskData, feature)
+        w = trainD(D, feature, trainConf)               #train
+
+        print 'Validate fold', i
+        foldErr = validate(maskData, w, feature, mean, std)
+        avgValErr += foldErr
+        print 'foldErr', foldErr
+
+    avgValErr /= 4
+    print '\n\n\n####################\n4-fold validation Done.'
+    print 'AvgValErr:', avgValErr
+    print 'Feature terms:', len(feature)
+    print '####################\n\n\n'
     return avgValErr
+
 def trainAll(idxData, feature, para):
-    D = findTrainSet(idxData, feature)
-    if para.la:
-        w = LA_Regression(D)
+    print '\n\nAll Data'
+    if para.flt:
+        D, mean, std, maskData, w = [], [], [], [], []
+        for mask in para.mask:
+            maskData_ = dataMask(idxData, mask)
+            D_, mean, std = dataPreprocess(maskData_, feature)
+            w_ = trainD(D_, feature, para)
+
+            D.append(D_)
+            mean.append(mean_)
+            std.append(std_)
+            w.append(w_)
+        w = np.array(w)
     else:
-        w = GD_Regression(D, para.regRate, para.GDpara)
-        if regRate == 0:
-            print LA_Regression(D)
-    return w
+        D, mean, std = dataPreprocess(idxData, feature)
+        w = trainD(D, feature, para)
+    return w, mean, std
+
+def scale(D):
+    dimx = len( D[0]['x'] )
+    mean = np.mean(D['x'], axis=0)
+    std  = np.std (D['x'], axis=0)
+    mean[0], std[0] = 0, 1
+    D['x'] = np.array( [ (x-mean)/std for x in D['x'] ] )
+    return D, mean, std
 
 if __name__ == '__main__':
 ### initialize
     filename = 'trainingData.m'
-    feature = [{'src':[(0,8)], 'form':0},
-            {'src':[(0,7)], 'form':0},
-            {'src':[(0,6)], 'form':0},
-            {'src':[(0,5)], 'form':0},
-            {'src':[(0,4)], 'form':0}]
+    feature = []
+    val = True
+    print 'Feature generating...'
+    for h in range(9):
+        for i in range(17):
+            feature.append({'src':[(i,h)], 'form':0})
     # feature[i] = {'src':[(itemID,hour),(itemID,hour),...]
     #               'form':function }
+    print_feature( featureMap(feature) )
+    print 'Feature generated with dim', len(feature)
     para = config( len(feature)+1 )
+
+### Read original idxData
+    with open(filename, 'r') as f:
+        idxData=cPickle.load(f)
 
 ### Change Configuration
     wfname = sys.argv[0][:-9]
@@ -286,33 +280,67 @@ if __name__ == '__main__':
                 para.regRate = -1
             para.regRate = float(arg[4:])
         if arg == '-flt':
-            para.flt = True
+            val = False
+            with open('mostSim.m', 'r') as f:
+                mostSim = cPickle.load(f)
+            mask = []
+            for i, prob in enumerate(mostSim):
+                print 'filter for prob', i, prob
+                month, hour = prob[0], prob[1]
+                mask_ = -1*np.ones(idxData.shape, dtype=idxData.dtype)
+                if hour < 14:
+                    mask_[month,   11:, :, hour:hour+10]=1
+                    mask_[month+1, :11, :, hour:hour+10]=1
+                else:
+                    mask_[month,   11:, :, hour:] = 1
+                    mask_[month,   11:, :, :hour-14] = 1
+                    mask_[month+1, :11, :, hour:] = 1
+                    mask_[month+1, :11, :, :hour-14] = 1
+                    print 'Across the day'
+                mask.append(mask_)
+            para.setFlt(mask)
+        if arg.startswith('-feat'):
+            with open(sys.argv[i+1], 'r') as f:
+                feature = cPickle.load(f)
+            if sys.argv[i+1][-2:] == '.w':
+                feature = feature['feature']
+            print '\nFeature changed to', sys.argv[i+1], 'with dim', len(feature)
+            print_feature( featureMap(feature) )
+            para.setDim( len(feature)+1 )
 
         # Training Method
         if arg == '-la':
-            para.la = True
-    print 'Feature:', feature
-
-### Read original idxData
-    with open(filename, 'r') as f:
-        idxData=cPickle.load(f)
+            para.method = 'la'
+        if arg == '-NOval':
+            val = False
+    if para.regRate == 0:
+        para.method = 'la'
 
 ### Train with validation
-    avgValErr = trainWithValidation(idxData, feature, para)
-    x = raw_input('Continue(q for quit)?')
-    if x == 'q':
-        sys.exit()
+    if val == True:
+        avgValErr = trainWithValidation(idxData, feature, para)
+        '''
+        x = raw_input('Continue(q for quit)?')
+        if x == 'q':
+            sys.exit()
+        '''
+        wfname = 'val%06.2f' % avgValErr + wfname
 
 ### Train with all data
-    w = trainAll(idxData, feature, para)
+    w, mean, std = trainAll(idxData, feature, para)
 
 ### Save the result
-    wfname = 'val%06.2f' % avgValErr + wfname
     wfname += '.w'
     save = raw_input('Save '+wfname+' ?')
+    name = raw_input('File Name:')
     if save == '1':
+        if name != '':
+            wfname = name
         with open(wfname, 'wb') as f:
-            cPickle.dump({'w':w, 'feature':feature},f)
+            cPickle.dump( {'w':w, 
+                'feature':feature, 
+                'mean':mean, 
+                'std':std},         f)
             print wfname+' saved!'
     else:
         print 'Pass.'

@@ -27,11 +27,11 @@ if __name__ == '__main__':
                     value = np.array(raw[3:]).astype('float')
                     idxData[month,day,itemID] = value
             print idxData[:,:,0,:]
-            s = raw_input('Save -train?')
-            if s == '1':
-                with open('trainingData.m', 'wb') as f:
-                    cPickle.dump(idxData, f)
-                    print 'trainingData.m Saved!'
+            #s = raw_input('Save -train?')
+            #if s == '1':
+            with open('trainingData.m', 'wb') as f:
+                cPickle.dump(idxData, f)
+                print 'trainingData.m Saved!'
 
         if arg == '-test':
             # data[probID, item, hour]
@@ -46,8 +46,8 @@ if __name__ == '__main__':
                     value = np.array(raw[2:]).astype('float')
                     data[probID,itemID] = value
             print data[10]
-            s = raw_input('Save -test?')
-            if s == '1':
-                with open('testData.m', 'wb') as f:
-                    cPickle.dump(data, f)
-                    print 'testData.m Saved!'
+            #s = raw_input('Save -test?')
+            #if s == '1':
+            with open('testData.m', 'wb') as f:
+                cPickle.dump(data, f)
+                print 'testData.m Saved!'
