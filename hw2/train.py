@@ -3,7 +3,7 @@ import cPickle
 import sys
 import pandas as pd
 nameFile = 'spambase.names'
-sigmoid = lambda z: 1/(1+np.exp(-1*z))
+sigmoid = lambda z: 1/(1+np.exp(-z))
 def readNames(nameFile, train=True):
     names = []
     print '\tNames generating...'
@@ -29,7 +29,7 @@ def readNames(nameFile, train=True):
     print '\tDone.'
     return names
 
-def dataParser(filename, feature):
+def dataParser(filename, feature, scaling = True):
     print 'Data preprocessing...'
     names = readNames(nameFile)
     df = pd.read_csv(filename, index_col=0, header=None, names=names)
@@ -46,18 +46,22 @@ def dataParser(filename, feature):
     x[:,-1] = 1
     y = df.values[:, -1]
     print '\tx:', x.shape, x.dtype, '\n\ty:', y.shape, y.dtype
-    print '\tScaling...'
-    mean = df.mean().values[:-1]
-    std = df.std().values[:-1]
-    x[:,:-1] = (x[:,:-1]-mean)/std
-    print '\tDone.'
+    if scaling:
+        print '\tScaling...'
+        mean = df.mean().values[:-1]
+        std = df.std().values[:-1]
+        x[:,:-1] = (x[:,:-1]-mean)/std
+        print '\tDone.'
+        scale = {'mean': mean,
+                'std':std}
+    else:
+        scale = {'mean': 0,
+                'std': 1 }
 
     D = np.zeros(dataAmt, dtype=[('x', str(dimx)+'float'), 
                                  ('y', 'float')])
     D['x'] = x
     D['y'] = y
-    scale = {'mean': mean,
-            'std':std}
     print '\tD:', D['x'][ -1,-5:], D['y'][-1]
     print 'Done.\n'
     return D, scale
@@ -107,7 +111,7 @@ def LogReg(D, GDpara):
             f = sigmoid( np.dot(x,w) )
             g = np.dot(y-f,x)
             G += g**2
-            w = w+eta*g/G
+            w = w+eta*g/(G**0.5)
             diff = y - np.rint(f)
             acc = len( diff[diff==0] )/ float(len(diff)) * 100
             if i%100 == 0:
@@ -120,7 +124,7 @@ def LogReg(D, GDpara):
             f = sigmoid( np.dot(x,w) )
             g = np.dot(y-f,x)
             G += g**2
-            change = eta*g/G
+            change = eta*g/(G**0.5)
             w = w+change
             changeRate = np.linalg.norm(change)/np.linalg.norm(w)
             diff = y - np.rint(f)
@@ -140,6 +144,7 @@ if __name__ == '__main__':
     fileIn = 'spam_data/spam_train.csv'
     fileOut = ''
     val = True
+    scaling = True
 
     for i, arg in enumerate(sys.argv):
         if arg.startswith('-in'):
@@ -155,8 +160,10 @@ if __name__ == '__main__':
                 GDpara[key] = float(value[i])
         if arg.startswith('-noVal'):
             val = False
+        if arg.startswith('noScale'):
+            scaling = False
 
-    D, scale = dataParser(fileIn, feature)
+    D, scale = dataParser(fileIn, feature, scaling)
     if val:
         valScore = validate(D, GDpara)
     else:
