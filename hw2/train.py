@@ -160,7 +160,7 @@ if __name__ == '__main__':
                 GDpara[key] = float(value[i])
         if arg.startswith('-noVal'):
             val = False
-        if arg.startswith('noScale'):
+        if arg.startswith('-noScale'):
             scaling = False
 
     D, scale = dataParser(fileIn, feature, scaling)
