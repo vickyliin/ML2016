@@ -3,7 +3,6 @@ import cPickle
 import sys
 import pandas as pd
 nameFile = 'spambase.names'
-sigmoid = lambda z: 1/(1+np.exp(-z))
 def readNames(nameFile, train=True):
     names = []
     print '\tNames generating...'
