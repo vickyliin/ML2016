@@ -4,40 +4,26 @@ import cPickle
 import sys
 from pprint import pprint
 nameFile = 'spambase.names'
-sigmoid = lambda z: 1/(1+np.exp(-1*z))
 from train import readNames
+from train import classify
 
 def dataParser(filename, model):
     print 'Data preprocessing...'
     names = readNames(nameFile, train=False)
     df = pd.read_csv(filename, index_col=0, header=None, names=names)
-    print '\tFeaturing:'
     feature = model['feature']
     if feature.startswith('drop:'):
         dropItems = feature[5:].split(',')
         for item in dropItems:
             df = df.drop(item, axis=1, level=1, errors='ignore')
             df = df.drop(item, axis=1, level=2, errors='ignore')
-
-    dataAmt,dimx = df.shape
-    dimx += 1
     print '\tdf:', df.shape
-    x = np.ones( dataAmt, dtype='%dfloat' % dimx)
-    x[:,:-1] = df.values
-    print '\tx:', x.shape, x.dtype
-
-    print '\tScaling:'
-    mean = model['scale']['mean']
-    std = model['scale']['std']
-    x[:,:-1] = (x[:,:-1]-mean)/std
-
-    print 'Done.\n'
-    return x
-
-
+    print 'Done.'
+    
+    return df
 
 if __name__ == '__main__':
-    fileModel = 'LogReg.m'
+    fileModel = 'tree.m'
     fileTest = 'spam_data/spam_test.csv'
     fileOut = ''
     for i, arg in enumerate(sys.argv):
@@ -50,18 +36,31 @@ if __name__ == '__main__':
 
     with open(fileModel, 'r') as f:
         model = cPickle.load(f)
-        print fileModel, 'loaded'
-        print 'Feature:', model['feature']
+        print '\n', fileModel, 'loaded'
+        print '\nFeature:', model['feature']
         print 'valScore:', model['valScore']
-    raw_input()
+        print 'stopUnity:', model['stopUnity']
+        print 'Tree nodes:', len(model['tree']), '\n'
     
-    x = dataParser(fileTest, model)
-    w = model['w']
-    yGuess = np.rint( sigmoid(np.dot(x,w)) )
+    X = dataParser(fileTest, model)
+    yGuess = []
+    nameDic = {}
+    for i, name in enumerate(X): 
+        nameDic[name] = i
+
+    for i, node in enumerate(model['tree']):
+        if type(node) != int:
+            model['tree'][i]['attr'] = nameDic[ node['attr'] ]
+    raw_input()
+
+    for x in X.values:
+        yGuess.append ( classify( x,model['tree'] ) )
+
     if fileOut == '':
         fileOut = fileModel[:-2] + '.csv'
     print 'Save as', fileOut, '?'
     raw_input()
+
     with open(fileOut, 'w') as f:
         f.write('id,label\n')
         for i,y in enumerate(yGuess):
