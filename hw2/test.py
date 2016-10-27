@@ -19,6 +19,10 @@ def dataParser(filename, model):
             df = df.drop(item, axis=1, level=1, errors='ignore')
             df = df.drop(item, axis=1, level=2, errors='ignore')
 
+    df['x','cpt'] = np.log(df['x','cpt']+0.0000001)
+    df['x','wr'] **= 0.5
+    df['x','cf'] **= 0.5
+
     dataAmt,dimx = df.shape
     dimx += 1
     print '\tdf:', df.shape

@@ -40,8 +40,12 @@ def dataParser(filename, feature, scaling = True):
             df = df.drop(item, axis=1, level=1, errors='ignore')
             df = df.drop(item, axis=1, level=2, errors='ignore')
 
+    df['x','cpt'] = np.log(df['x','cpt']+0.0000001)
+    df['x','wr'] **= 0.5
+    df['x','cf'] **= 0.5
     dataAmt,dimx = df.shape
     print '\tdf:', df.shape
+    print '\tfeature done.'
     x = df.values
     x[:,-1] = 1
     y = df.values[:, -1]
@@ -71,7 +75,8 @@ def validate(D, GDpara, foldAmt=4):
     valScore = [0]*foldAmt
     nDval = len(D)/foldAmt
     nDtrain = len(D) - nDval
-    GDpara['eta'] /= foldAmt
+    #GDpara['eta'] /= foldAmt
+    #GDpara['reg'] /= foldAmt
     print '\tAll Data #', len(D)
     print '\tTraining Data\t#', nDtrain
     print '\tValidation Data\t#', nDval
@@ -104,12 +109,13 @@ def LogReg(D, GDpara):
     w = np.zeros(dimx, dtype='float')
     itr = GDpara['itr']
     eta = GDpara['eta']
+    reg = GDpara['reg']
     G = 0
     if itr>0:
         itr = int(itr)
         for i in range(itr):
             f = sigmoid( np.dot(x,w) )
-            g = np.dot(y-f,x)
+            g = np.dot(y-f,x) + 2*reg*w
             G += g**2
             w = w+eta*g/(G**0.5)
             diff = y - np.rint(f)
@@ -122,7 +128,7 @@ def LogReg(D, GDpara):
         i = 0
         while changeRate > stopRate:
             f = sigmoid( np.dot(x,w) )
-            g = np.dot(y-f,x)
+            g = np.dot(y-f,x) + 2*reg*w
             G += g**2
             change = eta*g/(G**0.5)
             w = w+change
@@ -140,7 +146,8 @@ def LogReg(D, GDpara):
 if __name__ == '__main__':
     feature = 'default'
     GDpara = {'itr':-0.0001,
-            'eta':1}
+            'eta':1,
+            'reg':0, }
     fileIn = 'spam_data/spam_train.csv'
     fileOut = ''
     val = True
