@@ -184,6 +184,8 @@ if __name__ == '__main__':
             stopUnity = float(sys.argv[i+1])
         if arg.startswith('-noVal'):
             val = False
+        if arg.startswith('-noScale'):
+            scaling = False
 
     D = dataParser(fileIn, feature)
     if val:
