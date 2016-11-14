@@ -83,7 +83,7 @@ class myModel(Sequential):
         self.add(Activation('relu'))
         self.add(Activation('softmax'))
 
-        adam = Adam(lr=5e-4)
+        adam = Adam(lr=1e-3)
 
         self.compile(loss='categorical_crossentropy', optimizer=adam, init='lecun_uniform', metrics=['accuracy'])
         self.summary()
