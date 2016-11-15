@@ -7,7 +7,7 @@ import keras.backend
 from keras.models import Sequential
 from keras.layers import *
 from keras.optimizers import Adam
-from keras.callbacks import EarlyStopping, ModelCheckpoint
+from keras.callbacks import EarlyStopping, ModelCheckpoint, CSVLogger
 import tensorflow as tf
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -50,7 +50,7 @@ def createModel(dim_ordering='th',
 
     adam = Adam(lr=1e-3)
 
-    model.compile(loss='categorical_crossentropy', optimizer=adam, init='lecun_uniform', metrics=['accuracy'])
+    model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
     return model
 
 if __name__ == '__main__':
@@ -79,13 +79,15 @@ if __name__ == '__main__':
     model = createModel()
     model.summary()
     raw_input('...')
+    # create callbacks
+    csvLogger = lambda x: CSVLogger('%s.log' % modelOut, append=x)
     earlyStop = EarlyStopping(monitor='val_loss', patience=50)
-    checkpointer = ModelCheckpoint(modelOut)
-    histl = model.fit( Xl, Yl, 
-            batch_size=300, 
-            nb_epoch = nb_epoch, 
-            validation_split=0.2, 
-            callbacks=[earlyStop, checkpointer], )
+    checkpointer = ModelCheckpoint(modelOut, monitor='val_acc')
+    model.fit( Xl, Yl, 
+        batch_size=300, 
+        nb_epoch = nb_epoch, 
+        validation_split=0.2, 
+        callbacks=[earlyStop, checkpointer, csvLogger(0)], )
     print 'The model has been trained and saved as %s!\n' % modelOut
 
 
@@ -101,12 +103,13 @@ if __name__ == '__main__':
     Ylu = np.array(list(Yu)+list(Yl))
     #Ylu = np.swapaxes(Ylu.reshape(10,5000,10), 0,1).reshape(50000,10)
     #   train
-    histu = model.fit( Xlu, Ylu,  
+    model.fit( Xlu, Ylu,  
         batch_size=300, 
         nb_epoch = nb_epoch, 
         validation_split=0.02, 
-        callbacks=[earlyStop, checkpointer], )
+        callbacks=[earlyStop, checkpointer, csvLogger(1)], )
 
+    '''
     # save the history
     print 'Saving the history...'
     histl = json.dumps(histl.history, indent=4)+'\n'
@@ -117,3 +120,4 @@ if __name__ == '__main__':
         f.write('\nTrain with Xu+Xl\n')
         f.write(histu)
     print 'Done'
+    '''
