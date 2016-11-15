@@ -13,41 +13,8 @@ config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 session = tf.Session(config=config)
 keras.backend.tensorflow_backend.set_session(session)
+nb_classes=10
 
-'''
-class YModel(Sequential):
-    def __init__(self, img_channels=3, img_rows=32,
-                 img_cols=32, nb_classes=10):
-        super(YModel, self).__init__()
-        self.add(Convolution2D(64, 5, 5, dim_ordering='th',
-                                input_shape=(img_channels, img_rows, img_cols)))
-        self.add(Activation('relu'))
-        self.add(MaxPooling2D(pool_size=(2, 2)))
-        self.add(Dropout(0.65))
-
-        self.add(Convolution2D(128, 3, 3, dim_ordering='th'))
-        self.add(Activation('relu'))
-        self.add(AveragePooling2D(pool_size=(2, 2)))
-        self.add(Dropout(0.65))
-
-        self.add(Convolution2D(192, 3, 3, dim_ordering='th'))
-        self.add(Activation('relu'))
-        self.add(AveragePooling2D(pool_size=(2, 2)))
-        self.add(Dropout(0.65))
-
-        self.add(Flatten())
-        self.add(Dense(512))
-        self.add(Activation('tanh'))
-        self.add(Dropout(0.65))
-        self.add(Dense(nb_classes))
-        self.add(Activation('softmax'))
-        adam = Adam(lr=5e-4)
-        self.compile(loss='categorical_crossentropy',
-                      optimizer=adam,
-                      metrics=['accuracy'],
-                      )
-        self.summary()
-'''
 def createModel(dim_ordering='th',
                 input_shape=(3,32,32),
                 nb_classes=10, ):
@@ -103,7 +70,7 @@ if __name__ == '__main__':
             modelOut = 'test_trained_model'
 
     # load/normalize/reordering data
-    Xl, Xu, Xt = load_data(path, data=['l'])
+    Xl, Xu, Xt = load_data(path, data=['l','u'])
     Xl = np.swapaxes(Xl.reshape(10,500,3072), 0,1).reshape(5000,3,32,32)
     Yl = np.array(list([np.identity(10)])*500).reshape(5000,10)
 
@@ -121,10 +88,32 @@ if __name__ == '__main__':
             callbacks=[earlyStop, checkpointer], )
     print 'The model has been trained and saved as %s!\n' % modelOut
 
+
+    # self training
+    #   make Yu
+    Cu = model.predict_classes(Xu)
+    Yu = np.zeros([len(Cu),nb_classes])
+    for i,c in enumerate(Cu):
+        Yu[i,c] = 1
+    #   concatenate label[5000] & unlabel[45000] data
+    Xlu = np.array(list(Xu)+list(Xl))
+    #Xlu = np.swapaxes(Xlu.reshape(10,5000,3072), 0,1).reshape(50000,3,32,32)
+    Ylu = np.array(list(Yu)+list(Yl))
+    #Ylu = np.swapaxes(Ylu.reshape(10,5000,10), 0,1).reshape(50000,10)
+    #   train
+    histu = model.fit( Xlu, Ylu,  
+        batch_size=300, 
+        nb_epoch = nb_epoch, 
+        validation_split=0.02, 
+        callbacks=[earlyStop, checkpointer], )
+
     # save the history
     print 'Saving the history...'
     histl = json.dumps(histl.history, indent=4)+'\n'
+    histu = json.dumps(histu.history, indent=4)+'\n'
     with open('hist_%s' % modelOut, 'w') as f:
+        f.write('Train with Xl\n')
         f.write(histl)
-    print 'hist_%s saved!' % modelOut
-
+        f.write('\nTrain with Xu+Xl\n')
+        f.write(histu)
+    print 'Done'
