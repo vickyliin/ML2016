@@ -89,6 +89,7 @@ def createModel(dim_ordering='th',
 if __name__ == '__main__':
     path = 'data'
     modelOut = 'trained_model'
+    nb_epoch = 1000
 
     for i,arg in enumerate(sys.argv):
         if arg.startswith('-dir'):
@@ -97,6 +98,9 @@ if __name__ == '__main__':
                 path = path[:-1]
         if arg.startswith('-save'):
             modelOut = sys.argv[i+1]
+        if arg.startswith('-test'):
+            nb_epoch = 5
+            modelOut = 'test_trained_model'
 
     # load/normalize/reordering data
     Xl, Xu, Xt = load_data(path, data=['l'])
@@ -112,7 +116,7 @@ if __name__ == '__main__':
     checkpointer = ModelCheckpoint(modelOut)
     histl = model.fit( Xl, Yl, 
             batch_size=300, 
-            nb_epoch=1000, 
+            nb_epoch = nb_epoch, 
             validation_split=0.2, 
             callbacks=[earlyStop, checkpointer], )
     print 'The model has been trained and saved as %s!\n' % modelOut
