@@ -1,4 +1,5 @@
 from util import *
+import json
 import cPickle
 import numpy as np
 import sys
@@ -6,7 +7,7 @@ import keras.backend
 from keras.models import Sequential
 from keras.layers import *
 from keras.optimizers import Adam
-from keras.callbacks import EarlyStopping
+from keras.callbacks import EarlyStopping, ModelCheckpoint
 import tensorflow as tf
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -102,21 +103,24 @@ if __name__ == '__main__':
     Xl = np.swapaxes(Xl.reshape(10,500,3072), 0,1).reshape(5000,3,32,32)
     Yl = np.array(list([np.identity(10)])*500).reshape(5000,10)
 
-    # create/train model with labeled data
+    # create/train/save model with labeled data
     print 'Creating model with labeled data...'
     model = createModel()
     model.summary()
     raw_input('...')
     earlyStop = EarlyStopping(monitor='val_loss', patience=50)
+    checkpointer = ModelCheckpoint(modelOut)
     histl = model.fit( Xl, Yl, 
             batch_size=300, 
             nb_epoch=1000, 
             validation_split=0.2, 
-            callback=[earlyStop], )
+            callbacks=[earlyStop, checkpointer], )
+    print 'The model has been trained and saved as %s!\n' % modelOut
 
-    # save the model
+    # save the history
+    print 'Saving the history...'
+    histl = json.dumps(histl.history, indent=4)+'\n'
     with open('hist_%s' % modelOut, 'w') as f:
         f.write(histl)
-    raw_input('Save the model '+ modelOut +'?')
-    model.save(modelOut)
+    print 'hist_%s saved!' % modelOut
 
