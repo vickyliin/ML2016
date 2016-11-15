@@ -5,7 +5,7 @@ import sys
 import keras.backend
 from keras.models import Sequential
 from keras.layers import *
-from keras.optimizers import SGD, Adam
+from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping
 import tensorflow as tf
 config = tf.ConfigProto()
@@ -47,11 +47,11 @@ class YModel(Sequential):
                       )
         self.summary()
 '''
-def createModel(self, dim_ordering='th',
+def createModel(dim_ordering='th',
                 input_shape=(3,32,32),
                 nb_classes=10, ):
     
-    model = sequential()
+    model = Sequential()
     model.add(Convolution2D(15, 5,5, dim_ordering=dim_ordering, input_shape=input_shape))
     model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(2,2), dim_ordering=dim_ordering))
@@ -83,6 +83,7 @@ def createModel(self, dim_ordering='th',
     adam = Adam(lr=1e-3)
 
     model.compile(loss='categorical_crossentropy', optimizer=adam, init='lecun_uniform', metrics=['accuracy'])
+    return model
 
 if __name__ == '__main__':
     path = 'data'
