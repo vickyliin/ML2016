@@ -14,40 +14,6 @@ config.gpu_options.allow_growth = True
 session = tf.Session(config=config)
 keras.backend.tensorflow_backend.set_session(session)
 
-'''
-class YModel(Sequential):
-    def __init__(self, img_channels=3, img_rows=32,
-                 img_cols=32, nb_classes=10):
-        super(YModel, self).__init__()
-        self.add(Convolution2D(64, 5, 5, dim_ordering='th',
-                                input_shape=(img_channels, img_rows, img_cols)))
-        self.add(Activation('relu'))
-        self.add(MaxPooling2D(pool_size=(2, 2)))
-        self.add(Dropout(0.65))
-
-        self.add(Convolution2D(128, 3, 3, dim_ordering='th'))
-        self.add(Activation('relu'))
-        self.add(AveragePooling2D(pool_size=(2, 2)))
-        self.add(Dropout(0.65))
-
-        self.add(Convolution2D(192, 3, 3, dim_ordering='th'))
-        self.add(Activation('relu'))
-        self.add(AveragePooling2D(pool_size=(2, 2)))
-        self.add(Dropout(0.65))
-
-        self.add(Flatten())
-        self.add(Dense(512))
-        self.add(Activation('tanh'))
-        self.add(Dropout(0.65))
-        self.add(Dense(nb_classes))
-        self.add(Activation('softmax'))
-        adam = Adam(lr=5e-4)
-        self.compile(loss='categorical_crossentropy',
-                      optimizer=adam,
-                      metrics=['accuracy'],
-                      )
-        self.summary()
-'''
 def createModel(dim_ordering='th',
                 input_shape=(3,32,32),
                 nb_classes=10, ):
@@ -66,11 +32,7 @@ def createModel(dim_ordering='th',
 
     model.add(MaxPooling2D(pool_size=(2,2), dim_ordering=dim_ordering))
     model.add(Dropout(0.65))
-    '''
-    model.add(Convolution2D(50, 3,3, border_mode='same', dim_ordering='th'))
-    model.add(Activation('relu'))
-    model.add(MaxPooling2D(pool_size=(2,2), dim_ordering='th'))
-    '''
+    
     model.add(Flatten())
     model.add(Dropout(0.65))
     model.add(Dense(4*nb_classes))
