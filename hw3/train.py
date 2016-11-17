@@ -108,16 +108,3 @@ if __name__ == '__main__':
         nb_epoch = nb_epoch, 
         validation_split=0.02, 
         callbacks=[earlyStop, checkpointer, csvLogger(1)], )
-
-    '''
-    # save the history
-    print 'Saving the history...'
-    histl = json.dumps(histl.history, indent=4)+'\n'
-    histu = json.dumps(histu.history, indent=4)+'\n'
-    with open('hist_%s' % modelOut, 'w') as f:
-        f.write('Train with Xl\n')
-        f.write(histl)
-        f.write('\nTrain with Xu+Xl\n')
-        f.write(histu)
-    print 'Done'
-    '''
