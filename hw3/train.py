@@ -82,13 +82,11 @@ if __name__ == '__main__':
     # create callbacks
     csvLogger = lambda x: CSVLogger('%s.log' % modelOut, append=x)
     earlyStop = EarlyStopping(monitor='val_loss', patience=50)
-    checkpointer = ModelCheckpoint(modelOut, monitor='val_acc')
     model.fit( Xl, Yl, 
         batch_size=300, 
         nb_epoch = nb_epoch, 
         validation_split=0.2, 
-        callbacks=[earlyStop, checkpointer, csvLogger(0)], )
-    print 'The model has been trained and saved as %s!\n' % modelOut
+        callbacks=[earlyStop, csvLogger(0)], )
 
 
     # self training
@@ -103,8 +101,10 @@ if __name__ == '__main__':
     Ylu = np.array(list(Yu)+list(Yl))
     #Ylu = np.swapaxes(Ylu.reshape(10,5000,10), 0,1).reshape(50000,10)
     #   train
+    checkpointer = ModelCheckpoint(modelOut, monitor='val_acc')
     model.fit( Xlu, Ylu,  
         batch_size=300, 
         nb_epoch = nb_epoch, 
         validation_split=0.02, 
         callbacks=[earlyStop, checkpointer, csvLogger(1)], )
+    print 'The model has been trained and saved as %s!\n' % modelOut
