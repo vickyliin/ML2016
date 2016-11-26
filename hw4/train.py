@@ -7,6 +7,7 @@ from whoosh.searching import Searcher, Results
 import pandas as pd
 import numpy as np
 from time import time
+import sys
 
 class result():
     def __init__(self, r=0, searcher=0):
@@ -70,14 +71,9 @@ def check(C, table):
     answer = np.zeros(len(C), dtype='bool')
     start = time()
     for i in C.index:
-        print(i, end=',', flush=True)
         answer[i] = table[ C['x_ID'][i] , C['y_ID'][i] ]
-        print('%d'%answer[i], end='\t', flush=True)
+        print("%d,%d" % (i,answer[i]), end='\r', flush=True)
     ela = time()-start
-    print('\nTime: %.2f secs'%els)
+    print('\nTime: %.2f secs'%ela)
     return answer
 
-def make_sentVec(docs, wordmodel):
-    return sentVecs
-def train_sentModel(docVecs, output=None, **kwargs):
-    return 0

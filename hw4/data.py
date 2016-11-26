@@ -28,7 +28,6 @@ def loadC(path='data'):
     if path[-1] != '/':
         path += '/'
     df = pd.read_csv(path+'check_index.csv', index_col=0)
-    df['ans'] = -1
     return df
 
 def savetabel(table, path='table/'):
@@ -52,7 +51,7 @@ def save(ans, filename='QAQ.csv'):
     with open(filename, 'w') as f:
         f.write('ID,Ans\n')
         for i in range(len(ans)):
-            print('%d,%d'%(i,ans[i]), end='\t', flush=True)
+            print('%d,%d'%(i,ans[i]), end='\r', flush=True)
             f.write('%d,%d\n'%(i,ans[i]))
     ela = time()-start
     print('\nWritten to file %s!\nTime: %.2f secs'%(filename, ela))
