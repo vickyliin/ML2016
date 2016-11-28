@@ -3,7 +3,8 @@ from gensim.models import Word2Vec
 import pandas as pd
 import numpy as np
 from time import time
-rom nltk.tokenize import word_tokenize
+
+from nltk.tokenize import word_tokenize
 from nltk.stem.lancaster import LancasterStemmer
 from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import normalize
