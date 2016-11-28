@@ -31,28 +31,24 @@ def loadC(path='data'):
     df['ans'] = -1
     return df
 
-def savetabel(table, path='table/'):
-    size = len(table)/10
-    for i in range(10):
-        with open('%s%d.cpk'%(path,i), 'wb') as f:
-            print('%d,\t%d : %d' % (i,size*i, size*(i+1)))
-            cpk.dump(table[size*i:size*(i+1)], f)
+def savetags(tags, filename='tags'):
+    with open('%s.cpk'%filename, 'wb') as f:
+        cpk.dump(tags, f)
+        print('Save as %s.cpk!'%filename)
 
-def loadtable(path='table/'):
-    table = []
-    for i in range(10):
-        with open('%s%d.cpk'%(path,i), 'rb') as f:
-            print(i, end=', ', flush=True)
-            table.append(cpk.load(f))
-    table = np.array(table, dtype='bool').reshape(len(table[0])*10, -1)
-    return table
+def loadtags(filename='tags'):
+    with open('%s.cpk'%filename, 'rb') as f:
+        tags = cpk.load(f)
+        print('Model %s.cpk loaded!'%filename)
+    return tags
     
 def save(ans, filename='QAQ.csv'):
     start = time()
+    #print('        M')
     with open(filename, 'w') as f:
         f.write('ID,Ans\n')
         for i in range(len(ans)):
-            print('%d,%d'%(i,ans[i]), end='\t', flush=True)
+            #print('\r# %d\t%d'%(i,ans[i]), end='', flush=True)
             f.write('%d,%d\n'%(i,ans[i]))
     ela = time()-start
     print('\nWritten to file %s!\nTime: %.2f secs'%(filename, ela))
