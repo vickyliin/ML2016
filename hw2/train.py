@@ -3,7 +3,6 @@ import cPickle
 import sys
 import pandas as pd
 nameFile = 'spambase.names'
-sigmoid = lambda z: 1/(1+np.exp(-z))
 def readNames(nameFile, train=True):
     names = []
     print '\tNames generating...'
@@ -29,7 +28,7 @@ def readNames(nameFile, train=True):
     print '\tDone.'
     return names
 
-def dataParser(filename, feature, scaling = True):
+def dataParser(filename, feature):
     print 'Data preprocessing...'
     names = readNames(nameFile)
     df = pd.read_csv(filename, index_col=0, header=None, names=names)
@@ -39,61 +38,63 @@ def dataParser(filename, feature, scaling = True):
         for item in dropItems:
             df = df.drop(item, axis=1, level=1, errors='ignore')
             df = df.drop(item, axis=1, level=2, errors='ignore')
-
-    df['x','cpt'] = np.log(df['x','cpt']+0.0000001)
-    df['x','wr'] **= 0.5
-    df['x','cf'] **= 0.5
-    dataAmt,dimx = df.shape
     print '\tdf:', df.shape
-    print '\tfeature done.'
-    x = df.values
-    x[:,-1] = 1
-    y = df.values[:, -1]
-    print '\tx:', x.shape, x.dtype, '\n\ty:', y.shape, y.dtype
-    if scaling:
-        print '\tScaling...'
-        mean = df.mean().values[:-1]
-        std = df.std().values[:-1]
-        x[:,:-1] = (x[:,:-1]-mean)/std
-        print '\tDone.'
-        scale = {'mean': mean,
-                'std':std}
-    else:
-        scale = {'mean': 0,
-                'std': 1 }
+    raw_input('Done.')
+    
+    return df
 
-    D = np.zeros(dataAmt, dtype=[('x', str(dimx)+'float'), 
-                                 ('y', 'float')])
-    D['x'] = x
-    D['y'] = y
-    print '\tD:', D['x'][ -1,-5:], D['y'][-1]
-    print 'Done.\n'
-    return D, scale
+def classify(x, tree):
+    node = tree[0]
+    while type(node) != int:
+        attr = node['attr']
+        c = node['c']
+        if x[ node['attr'] ] < c:
+            node = tree[ node['son'][0] ]
+            print('l'),
+        else:
+            node = tree[ node['son'][1] ]
+            print('r'),
+    print ''
+    return node
 
-def validate(D, GDpara, foldAmt=4):
+def validate(D, stopUnity, foldAmt=4):
     print 'Validating...'
-    valScore = [0]*foldAmt
+    valScore = [0.0]*foldAmt
     nDval = len(D)/foldAmt
     nDtrain = len(D) - nDval
-    #GDpara['eta'] /= foldAmt
-    #GDpara['reg'] /= foldAmt
     print '\tAll Data #', len(D)
     print '\tTraining Data\t#', nDtrain
     print '\tValidation Data\t#', nDval
+    nameDic = {}
+    for i, name in enumerate(D): 
+        nameDic[name] = i
     for fold in range(foldAmt):
         print 'Fold', fold
         start = len(D)*fold/foldAmt
-        Dval = np.zeros(nDval, dtype=D.dtype)
         Dval = D[start : start+nDval]
-        Dtrain = np.zeros(nDtrain, dtype=D.dtype)
-        Dtrain[:start] = D[:start]
-        Dtrain[start:] = D[start+nDval:]
+        Dtrain = pd.DataFrame( np.zeros([nDtrain, D.shape[1]], dtype=D.values.dtype) )
+        print Dtrain.shape
+        print D[:start].values.shape
+        Dtrain[:start] = D[:start].values
+        Dtrain[start:] = D[start+nDval:].values
         print '\tValidation Data Range\t:', start, '-', start+nDval-1
-        w = LogReg(Dtrain, GDpara)
+
+        tree = [0]
+        attrs = list(D.columns)
+        del(attrs[-1])
+        trainTree(tree, 0, D, attrs, stopUnity)
+        print '\n\tTree nodes:', len(tree)
+        print '\tFold %d trained.' % fold
+        
         print '\nTesting...'
-        x,y = Dval['x'], Dval['y']
-        diff = y - np.rint( sigmoid(np.dot(x,w)) )
-        valScore[fold] = len( diff[diff==0] )/ float(len(diff)) * 100
+        for i, node in enumerate(tree):
+            if type(node) != int:
+                tree[i]['attr'] = nameDic[ node['attr'] ]
+        for x in Dval.values:
+            if classify(x, tree) == x[-1]:
+                valScore[fold] += 1
+        valScore[fold] /= (len(Dval)/100)
+
         print '*'*40
         print '\tFold', fold, 'score: %.4f' % valScore[fold]
         print '*'*40, '\n'
@@ -101,57 +102,75 @@ def validate(D, GDpara, foldAmt=4):
 
     return sum(valScore)/foldAmt
 
-def LogReg(D, GDpara):
-    print 'Training...'
-    x, y = D['x'], D['y']
-    nD, dimx = x.shape
-    print '\tTraining Data #', nD, ', Dim x:', dimx
-    w = np.zeros(dimx, dtype='float')
-    itr = GDpara['itr']
-    eta = GDpara['eta']
-    reg = GDpara['reg']
-    G = 0
-    if itr>0:
-        itr = int(itr)
-        for i in range(itr):
-            f = sigmoid( np.dot(x,w) )
-            g = np.dot(y-f,x) + 2*reg*w
-            G += g**2
-            w = w+eta*g/(G**0.5)
-            diff = y - np.rint(f)
-            acc = len( diff[diff==0] )/ float(len(diff)) * 100
-            if i%100 == 0:
-                print '\t', i, ', acc:', '%.2f' % acc
-    else:
-        stopRate = -1*itr
-        changeRate = 1
-        i = 0
-        while changeRate > stopRate:
-            f = sigmoid( np.dot(x,w) )
-            g = np.dot(y-f,x) + 2*reg*w
-            G += g**2
-            change = eta*g/(G**0.5)
-            w = w+change
-            changeRate = np.linalg.norm(change)/np.linalg.norm(w)
-            diff = y - np.rint(f)
-            acc = len( diff[diff==0] )/ float(len(diff)) * 100
-            if i%100 == 0:
-                print '\t', i, 'change: %.4f' % changeRate, ', acc: %.2f' % acc
-            i += 1
-        print '\n\t', i-1, 'change: %.4f' % changeRate, ', acc: %.2f' % acc
+def findAttr(D, attrs):
+    splitD = {}
+    classCnt = np.array( [ 0, D['y'].sum() ] )
+    classCnt[0] = D.shape[0] - classCnt[1]
 
-    print 'Done.\n'
-    return w
+    minH = len(D)
+    for attr in attrs:
+        # lCnt[j] = number of which y=j before i
+        # rCnt[j] = number of which y=j after i
+        lCnt = np.zeros(2, dtype='int')
+        sortY = D.sort_values(by=attr)['y'].values
+
+        lCnt[ sortY[0] ] += 1
+        for i in range( 1, len(D) ):
+            # i: total data amout at the left
+            rCnt = classCnt - lCnt
+            weightH = sum( lCnt*np.log(lCnt+0.0001) ) + sum(rCnt*np.log(rCnt+0.0001) ) - ( 
+                    i*np.log(i+0.0001) + (len(D)-i)*np.log(len(D)-i+0.0001) )
+            weightH = -weightH
+            #print '\t', attr, i, 'lCnt:', lCnt, 'weightH:', weightH
+            if weightH < minH:
+                minH = weightH
+                cut = i
+                attrS = attr
+
+            lCnt[ sortY[i] ] += 1
+        print '\t', 'attrS:', attrS, 'cut:', cut, 'minH:', minH
+
+    D = D.sort_values(by=attrS)
+    splitD={ 'left': D[:cut],
+            'right': D[cut:]}
+    c = splitD['right'][attrS].values[0]
+
+    print '\n\tsplitD:', splitD['left'].shape[0], splitD['right'].shape[0]
+    print '\tattrS:', attrS, 'c:', c
+    #raw_input()
+    return attrS, c, splitD
+
+def trainTree(tree, idx, D, attrs, stopUnity=0.9):
+    unity1 = len ( D[ D['y']==1 ] ) / float( len(D) )
+    print '[Y/N] Ratio %.2f : %.2f' % (unity1*100, (1-unity1)*100 )
+    if unity1 > stopUnity:
+        tree[idx] = 1
+        print 'Reach leaf node 1 with %d data' % len(D)
+    elif ( 1-unity1 ) > stopUnity:
+        tree[idx] = 0
+        print 'Reach leaf node 0 with %d data' % len(D)
+
+    else:
+        attr, c, splitD = findAttr(D, attrs)
+
+        lidx, ridx = len(tree), len(tree)+1
+        tree.append({}), tree.append({})
+
+        node = { 'attr': attr,
+                'c': c,
+                'son': [lidx, ridx], }
+        tree[idx] = node
+
+        trainTree(tree, lidx, splitD['left'], attrs, stopUnity)
+        trainTree(tree, ridx, splitD['right'], attrs, stopUnity)
 
 if __name__ == '__main__':
     feature = 'default'
-    GDpara = {'itr':-0.0001,
-            'eta':1,
-            'reg':0, }
     fileIn = 'spam_data/spam_train.csv'
     fileOut = ''
     val = True
     scaling = True
+    stopUnity = 0.9
 
     for i, arg in enumerate(sys.argv):
         if arg.startswith('-in'):
@@ -161,30 +180,32 @@ if __name__ == '__main__':
         if arg.startswith('-feat'):
             # -feat drop:wr,cf
             feature = sys.argv[i+1]
-        if arg.startswith('-para:'):
-            value = sys.argv[i+1].split(',')
-            for i, key in enumerate(arg[6:].split(',')):
-                GDpara[key] = float(value[i])
+        if arg.startswith('-stop'):
+            stopUnity = float(sys.argv[i+1])
         if arg.startswith('-noVal'):
             val = False
-        if arg.startswith('-noScale'):
-            scaling = False
 
-    D, scale = dataParser(fileIn, feature, scaling)
+    D = dataParser(fileIn, feature)
     if val:
-        valScore = validate(D, GDpara)
+        valScore = validate(D, stopUnity)
     else:
         valScore = 0
-    w = LogReg(D, GDpara)
 
-    model = {'w':w,
+    tree = [0]
+    attrs = list(D.columns)
+    del(attrs[-1])
+    print 'Training...'
+    trainTree(tree, 0, D, attrs, stopUnity)
+    print 'Done.'
+    print tree
+
+    model = {'tree':tree,
         'feature': feature,
-        'GDpara': GDpara,
-        'scale': scale,
+        'stopUnity': stopUnity,
         'valScore': valScore, }
     if fileOut == '':
-        fileOut = 'val%06.4f_' % valScore
-        fileOut += 'dim%02d_' % len(w)
+        fileOut = 'tval%06.4f_' % valScore
+        fileOut += 'dim%02d_' % len(attrs)
         fileOut += feature
         fileOut += '.m'
     print 'Save as', fileOut, '?'
