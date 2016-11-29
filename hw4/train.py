@@ -6,7 +6,7 @@ from time import time
 
 from nltk.tokenize import word_tokenize
 from nltk.stem.lancaster import LancasterStemmer
-from sklearn.decomposition import TruncatedSVD
+from sklearn.decomposition import TruncatedSVD, PCA
 from sklearn.preprocessing import normalize
 from sklearn.cluster import KMeans
 from scipy.stats import variation
@@ -42,6 +42,15 @@ def featExt(F, dimOut=100, normalize=True, **kwargs):
         M = normalize(M)
     return M
 
+def decomPCA(M, dimOut=2):
+    pca = PCA(n_components=dimOut)
+    M2d = pca.fit_transform(M)
+    x,y = tuple(zip(*M2d))
+    x,y = np.array(x), np.array(y)
+    return x,y
+
+
+
 def cluster(M, n=nb_class, stop=0.1, **kwargs):
     cvar,i = 1,0
     while cvar > stop:
@@ -56,6 +65,7 @@ def cluster(M, n=nb_class, stop=0.1, **kwargs):
         print(cvar, end='', flush='True')
         i += 1
     return tags 
+
 def bm25(idf, tf, fl, avgfl, B, K1):
     # idf - inverse document frequency
     # tf - term frequency in the current document
