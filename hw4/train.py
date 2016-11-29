@@ -80,7 +80,7 @@ def check(C, tags):
     answer = np.zeros(len(C), dtype='bool')
     start = time()
     for i in C.index:
-        answer[i] = tags[C['x_ID'][i]]==tags[C['y_ID'][i]]
+       answer[i] = tags[C['x_ID'][i]]==tags[C['y_ID'][i]]
         print('\r# %07d\t%d'%(i,answer[i]), end='', flush=True)
     ela = time()-start
     print('\nTime: %.2f secs'%ela)

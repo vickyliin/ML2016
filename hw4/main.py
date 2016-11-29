@@ -1,7 +1,6 @@
 from data import *
 from train import *
 import sys
-
 path = sys.argv[1]
 output = sys.argv[2]
 

@@ -28,7 +28,6 @@ def loadC(path='data'):
     if path[-1] != '/':
         path += '/'
     df = pd.read_csv(path+'check_index.csv', index_col=0)
-    df['ans'] = -1
     return df
 
 def savetags(tags, filename='tags'):
