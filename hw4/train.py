@@ -49,8 +49,6 @@ def decomPCA(M, dimOut=2):
     x,y = np.array(x), np.array(y)
     return x,y
 
-
-
 def cluster(M, n=nb_class, stop=0.1, **kwargs):
     cvar,i = 1,0
     while cvar > stop:
@@ -81,7 +79,7 @@ def check(C, tags):
     start = time()
     for i in C.index:
        answer[i] = tags[C['x_ID'][i]]==tags[C['y_ID'][i]]
-        print('\r# %07d\t%d'%(i,answer[i]), end='', flush=True)
+       print('\r# %07d\t%d'%(i,answer[i]), end='', flush=True)
     ela = time()-start
     print('\nTime: %.2f secs'%ela)
     return answer
