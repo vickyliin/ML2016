@@ -49,7 +49,7 @@ def decomPCA(M, dimOut=2):
     x,y = np.array(x), np.array(y)
     return x,y
 
-def cluster(M, n=nb_class, stop=0.1, **kwargs):
+def cluster(M, n=nb_class, stop=0.5, **kwargs):
     cvar,i = 1,0
     while cvar > stop:
         print('\r#%d\t'%i, end='', flush='True')
