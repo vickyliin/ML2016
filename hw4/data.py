@@ -30,12 +30,12 @@ def loadC(path='data'):
     df = pd.read_csv(path+'check_index.csv', index_col=0)
     return df
 
-def savetags(tags, filename='tags'):
+def saveT(tags, filename='T'):
     with open('%s.cpk'%filename, 'wb') as f:
         cpk.dump(tags, f)
         print('Save as %s.cpk!'%filename)
 
-def loadtags(filename='tags'):
+def loadT(filename='T'):
     with open('%s.cpk'%filename, 'rb') as f:
         tags = cpk.load(f)
         print('Model %s.cpk loaded!'%filename)
