@@ -1,78 +1,85 @@
+from sklearn.feature_extraction.text import *
 from gensim.models import Word2Vec
-from whoosh import index
-from whoosh.fields import *
-from whoosh.analysis import StemmingAnalyzer
-from whoosh.qparser import QueryParser, OrGroup
-from whoosh.searching import Searcher, Results
 import pandas as pd
 import numpy as np
 from time import time
-import sys
 
-class result():
-    def __init__(self, r=0, searcher=0):
-        if r==0:
-            self.__dict__={ 
-                'title':[],
-                'num':[],
-                'docnum':[],
-                'score':[],
-                'keyterm':[]}
-        else:
-            self.set(r, searcher)
-    def set(self, r, searcher):
-        if type(r) == Results:
-            self.title  = [ x['title'] for x in r ]
-            self.num    = [ x['num'] for x in r ]
-            self.score  = [ x[0] for x in r.top_n ]
-            self.docnum = [ x[1] for x in r.top_n ]
-            key_score = [ searcher.key_terms([x], 'title') \
-                    for x in self.docnum ]
-            self.keyterm = [ list(zip(*x))[0] for x in key_score ]
-    def df(self):
-        return pd.DataFrame(self.__dict__)
+from nltk.tokenize import word_tokenize
+from nltk.stem.lancaster import LancasterStemmer
+from sklearn.decomposition import TruncatedSVD, PCA
+from sklearn.preprocessing import normalize
+from sklearn.cluster import KMeans
+from scipy.stats import variation
+nb_class = 20
+title_per_class = 1000
 
-def train_w2v(docs, output=None, **kwargs):
-    model = Word2Vec(docs, **kwargs)
-    if output != None:
-        if output==1:
-            output='vecmodel.cpk'
-        model.save(output)
-    return model
+def FreqMatrixGen(T, min_df=2, max_df=1.0/nb_class, **kwargs):
+    corpus = T['title']
+    # analyzer
+    stem = lambda terms_list:\
+            [ LancasterStemmer().stem(term) for term in terms_list ]
+    tokenize = CountVectorizer().build_analyzer()
+    ana = lambda x: stem(tokenize(x))
+    
+    # vecterizer (tf)
+    vectorizer = CountVectorizer(\
+            min_df = min_df,
+            max_df = max_df,
+            analyzer = ana, 
+            **kwargs)
+    M = vectorizer.fit_transform(corpus)
+    return M, vectorizer.get_feature_names()
 
-def indexGen(T, path='index'):
-    schema = Schema( title=TEXT(stored=True, analyzer=StemmingAnalyzer()),
-                     num=ID(stored=True) )
-    ix = index.create_in(path, schema)
-    with ix.writer() as w:
-        for i in T.index:
-            w.add_document(title=T['title'][i], num=str(i))
-    return 0
+def featExt(F, dimOut=100, normalize=True, **kwargs):
+    # tfidf
+    transformer = TfidfTransformer(smooth_idf=False)
+    M = transformer.fit_transform(F)
+    # LSA
+    lsa = TruncatedSVD(n_components=dimOut, **kwargs)
+    M = lsa.fit_transform(M) 
+    # Normalize
+    if normalize == True:
+        M = normalize(M)
+    return M
 
-def search(query, ix='index', limit=1000):
-    ix = index.open_dir(ix)
-    with ix.searcher() as s:
-        parser = QueryParser('title', schema=ix.schema, group=OrGroup)
-        q = parser.parse(query)
-        rslt = result(s.search(q, limit=limit), s)
-    return rslt
+def decomPCA(M, dimOut=2):
+    pca = PCA(n_components=dimOut)
+    M2d = pca.fit_transform(M)
+    x,y = tuple(zip(*M2d))
+    x,y = np.array(x), np.array(y)
+    return x,y
 
-def build_table(T):
-    ans = np.identity(20000, dtype='bool')
-    for i in T.index:
-        print(i, end=', ', flush=True)
-        start=time()
-        ans[i][ search(T['title'][i]).docnum ] = 1
-        ela = time()-start
-        print('%.2f sec' % ela, end='\t', flush=True)
-    return ans
+def cluster(M, n=nb_class, stop=0.5, **kwargs):
+    cvar,i = 1,0
+    while cvar > stop:
+        print('\r#%d\t'%i, end='', flush='True')
+        kmeans = KMeans(\
+                n_clusters=n,
+                n_init=1,
+                **kwargs).fit(M)
+        tags = kmeans.labels_
+        count_tag = [ len(tags[tags==i]) for i in range(n)]
+        cvar = variation(count_tag)
+        print(cvar, end='', flush='True')
+        i += 1
+    return tags 
 
-def check(C, table):
+def bm25(idf, tf, fl, avgfl, B, K1):
+    # idf - inverse document frequency
+    # tf - term frequency in the current document
+    # fl - field length in the current document
+    # avgfl - average field length across documents in collection
+    # B, K1 - free paramters
+
+    return idf * ((tf * (K1 + 1)) / (tf + K1 * ((1 - B) + B * fl / avgfl)))
+
+
+def check(C, tags):
     answer = np.zeros(len(C), dtype='bool')
     start = time()
     for i in C.index:
-        answer[i] = table[ C['x_ID'][i] , C['y_ID'][i] ]
-        print("%d,%d" % (i,answer[i]), end='\r', flush=True)
+       answer[i] = tags[C['x_ID'][i]]==tags[C['y_ID'][i]]
+       print('\r# %07d\t%d'%(i,answer[i]), end='', flush=True)
     ela = time()-start
     print('\nTime: %.2f secs'%ela)
     return answer
