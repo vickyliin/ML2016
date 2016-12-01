@@ -30,7 +30,7 @@ def FreqMatrixGen(T, min_df=2, max_df=1.0/nb_class, **kwargs):
     M = vectorizer.fit_transform(corpus)
     return M, vectorizer.get_feature_names()
 
-def featExt(F, dimOut=100, normalize=True, **kwargs):
+def featExt(F, dimOut=100, normalization=True, **kwargs):
     # tfidf
     transformer = TfidfTransformer(smooth_idf=False)
     M = transformer.fit_transform(F)
@@ -38,7 +38,7 @@ def featExt(F, dimOut=100, normalize=True, **kwargs):
     lsa = TruncatedSVD(n_components=dimOut, **kwargs)
     M = lsa.fit_transform(M) 
     # Normalize
-    if normalize == True:
+    if normalization == True:
         M = normalize(M)
     return M
 
