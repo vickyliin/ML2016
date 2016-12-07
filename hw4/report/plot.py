@@ -1,4 +1,14 @@
 import plotly.plotly as py
+from sklearn.decomposition import TruncatedSVD
+import numpy as np
+
+def decomLSA(M, dimOut=2, **kwargs):
+    lsa = TruncatedSVD(n_components=dimOut, **kwargs)
+    M = lsa.fit_transform(M)
+    x,y = tuple(zip(*M))
+    x,y = np.array(x), np.array(y)
+    return x,y
+
 def plot(T):
     data = []
     for i in range(len(T['tag'].unique())):
