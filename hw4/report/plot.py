@@ -31,6 +31,20 @@ def keytermExt(T, F, terms, nb_keyterm=5, tags=tags):
         keyterm_dict[tag] = pd.DataFrame.from_dict(keyterm_tag, orient='index')
     return keyterm_dict
 
+
+True_labels=\
+['wordpress', 'oracle', 'svn', 'apache', 'excel', 'matlab', 'visual-studio', 
+'cocoa', 'osx', 'bash', 'spring', 'hibernate', 'scala', 
+'sharepoint', 'ajax', 'qt', 'drupal', 'linq', 'haskell', 'magento']
+def saveKeySet(keyterm_dict, true_label='label'):
+    with open('key_set.txt', 'w') as f:
+        for tag, keyterms in keyterm_dict.items():
+            print('\n\n%s'%tag, file=f)
+            keyterms = keyterms.sort_values(0)
+            for x in keyterms[0]:
+                print(x, end=', ', file=f)
+
+
 def plot(T, tags=tags, n=2, s=0.1):
     import matplotlib.pyplot as plt
     import matplotlib.cm as cm
