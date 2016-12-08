@@ -3,6 +3,7 @@ matplotlib.use('Agg')
 import plotly.plotly as py
 from sklearn.decomposition import TruncatedSVD
 import numpy as np
+import pandas as pd
 
 def decompose(M, dimOut=2, funct=TruncatedSVD, **kwargs):
     model = funct(n_components=dimOut, **kwargs)
@@ -17,6 +18,19 @@ def readL(filename='label_StackOverflow.txt'):
     return tags
 
 tags = ['autoencoder', 'lsa-40', 'lsa-20', 'label']
+
+def keytermExt(T, F, terms, nb_keyterm=5, tags=tags):
+    keyterm_dict = {} 
+    n = nb_keyterm
+    terms = np.array(terms)
+    for tag in tags:
+        keyterm_tag = {}
+        for i,cls in enumerate(T[tag].unique()):
+            Ftag = F[ T[ T[tag]==cls ].index ].toarray()
+            keyterm_tag[cls] = terms[ sum(Ftag).argsort()[::-1][:n] ]
+        keyterm_dict[tag] = pd.DataFrame.from_dict(keyterm_tag, orient='index')
+    return keyterm_dict
+
 def plot(T, tags=tags, n=2, s=0.1):
     import matplotlib.pyplot as plt
     import matplotlib.cm as cm
@@ -61,46 +75,3 @@ def plot(T, tags=tags, n=2, s=0.1):
         plt.close()
     return 1
  
-def plotly(T, tags=tags):
-    data = []
-    layout = dict(
-        width=600, height=600,
-        autosize=False,
-        showlegend=False,
-        showline=False,
-    )
-
-    marker = dict(size=1, line=dict(width=0))
-    if type(tags)!=list:
-        data = [ dict(
-            x = T['x'], y = T['y'], 
-            type = 'scatter2d',
-            mode = 'markers',
-            marker = marker,
-            ) ]
-        title = 'unlabeled'
-        layout['title']=title
-        fig = dict(data=data, layout=layout)
-        py.image.save_as(fig, filename = title+'.png')
-        print('%s.png saved!' % title)    
-        return 0
-    for tag in tags:
-        for i in range(len(T[tag].unique())):
-            name = T[tag].unique()[i]
-            x = T[ T[tag] == name ]['x']
-            y = T[ T[tag] == name ]['y']
-            
-            trace = dict(
-                x = x, y = y,
-                type = "scatter2d",    
-                mode = 'markers',
-                marker = marker, )
-            data.append(trace)
-
-        title = tag
-        layout['title']=title
-
-        fig = dict(data=data, layout=layout)
-        py.image.save_as(fig, filename = title+'.png')
-        print('%s.png saved!' % title)
-    return 1
