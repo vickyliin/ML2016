@@ -1,9 +1,10 @@
 import matplotlib
 matplotlib.use('Agg')
-import plotly.plotly as py
 from sklearn.decomposition import TruncatedSVD
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 def decompose(M, dimOut=2, funct=TruncatedSVD, **kwargs):
     model = funct(n_components=dimOut, **kwargs)
@@ -44,10 +45,46 @@ def saveKeySet(keyterm_dict, true_label='label'):
             for x in keyterms[0]:
                 print(x, end=', ', file=f)
 
+def centerPlt(T, keyterm_dict, 
+        tags=tags, n=0.5, true_label='label',
+        filename='centers'):
+    x, y = T['x'], T['y']
+    stdx, stdy = np.std(x), np.std(y)
+    meanx, meany = np.mean(x), np.mean(y)
+    xl, xr = meanx-n*stdx, meanx+n*stdx
+    yl, yr = meany-n*stdy, meany+n*stdy
+    xlim = (min(x[x>xl]), max(x[x<xr]))
+    ylim = (min(y[y>yl]), max(y[y<yr]))
+
+    color = cm.rainbow(np.linspace(0, 1, len(tags)))
+    plt.figure(figsize=(6,6))
+    plt.xlim(*xlim)
+    plt.ylim(*ylim)
+    for j, tag in enumerate(tags):
+        xs,ys = [], []
+        for i, cls in enumerate(T[tag].unique()):
+            x = np.mean(T[ T[tag] == cls ]['x'])
+            y = np.mean(T[ T[tag] == cls ]['y'])
+            name = keyterm_dict[tag][0][cls]
+            xs.append(x)
+            ys.append(y)
+            plt.annotate(name, (x+0.0001,y+0.0001), fontsize=8, color=color[j])
+        kwargs = {'s':3}
+        if tag == true_label:
+            kwargs['marker']='v'
+            kwargs['s']=10
+        plt.scatter(xs, ys, 
+                color=color[j],
+                label=tag, **kwargs)
+    plt.legend(ncol=1, 
+            fontsize=8, 
+            bbox_to_anchor=(0, 0))
+    plt.axis('off')
+    plt.savefig('%s.png'%filename, bbox_inches='tight')
+    plt.close()
+
 
 def plot(T, tags=tags, n=2, s=0.1):
-    import matplotlib.pyplot as plt
-    import matplotlib.cm as cm
     x, y = T['x'], T['y']
     stdx, stdy = np.std(x), np.std(y)
     meanx, meany = np.mean(x), np.mean(y)
